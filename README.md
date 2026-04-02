@@ -86,3 +86,75 @@ docs/
   interoperability/
   architecture/
 ```
+
+## Status
+
+This repository is in initial public setup.
+
+Current work in progress:
+
+* repository bootstrap
+* Apache 2.0 licensing
+* schema publication
+* validator v1.0 planning
+* Watchtower reference framework extraction
+* interoperability guide preparation
+
+## Prior specification work
+
+The OMP technical specification is already published through:
+
+* **Zenodo DOI:** `10.5281/zenodo.19140948`
+* **IETF Internet-Drafts:** core protocol and domain profiles
+
+This repository is the open implementation and verification layer that makes the published specification usable without vendor dependency.
+
+## Open / commercial boundary
+
+### Open in this repository
+
+* reference validator
+* machine-readable schemas
+* Watchtower reference framework
+* interoperability documentation
+* public examples and tests
+
+### Commercial and not included here
+
+* diagnostic agent
+* institutional deployment tooling
+* implementation consulting
+* domain-specific production configuration
+* production Proof-Point generation infrastructure
+* live deployment operations
+
+## Licensing
+
+* **Software and machine-readable schemas:** Apache License 2.0
+* **Documentation and interoperability guides:** CC BY 4.0 where indicated
+
+See [`LICENSE`](./LICENSE).
+
+## Contributing
+
+Contribution guidelines will be added as the public implementation stabilizes.
+
+Early contributors interested in:
+
+* schema review
+* RFC 3161 validation workflows
+* regulated-domain interoperability
+* test corpus design
+* IETF-aligned implementation feedback
+
+are welcome to open an issue.
+
+## Contact
+
+* **Veridom Ltd**
+* Website: `https://veridom.io`
+* Repository: `https://github.com/veridomltd/omp-open-core`
+
+For implementation, standards, or research collaboration, open an issue in this repository.
+
+```
