@@ -31,8 +31,11 @@
       "description": "Identifier of the OMP deployment receiving this interaction. Must match the deployment_id in the resulting Audit Trace."
     },
     "vertical": {
-      "type": "string",
-      "description": "The regulated vertical or domain for this interaction. Determines which Intent Class registry, Watchtower set, and routing thresholds apply. Must be a registered vertical for this deployment. Examples: 'kenya_dcp', 'kenya_sacco', 'uk_fca_consumer_duty', 'eu_ai_act_annex3', 'us_clinical_ai', 'us_employment_ads', 'us_mortgage_fhfa'."
+      "anyOf": [
+        { "$ref": "#/$defs/VerticalRegistry" },
+        { "type": "string", "pattern": "^[a-z0-9_]+$" }
+      ],
+      "description": "Registered vertical or deployment-defined extension vertical. Determines which Intent Class registry, Watchtower set, and routing thresholds apply."
     },
     "channel": {
       "type": "string",

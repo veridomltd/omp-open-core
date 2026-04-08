@@ -9,10 +9,11 @@
     "interaction_id", "interaction_received", "interaction_hash", "channel", "requester_id",
     "intent_class", "intent_confidence", "intent_top3", "classifier_version",
     "confidence_score", "confidence_components", "routing_threshold",
-    "watchtowers_evaluated", "watchtower_override",
+    "watchtowers_evaluated", "watchtower_override", "override_watchtower_id",
     "routing_path", "routing_rationale", "routing_decided_at",
+    "autonomous_dispatch", "assisted_resolution", "escalation_record",
     "tst_time", "tst_tsa_identity", "tst_raw", "tst_serial", "tst_hash_alg", "tst_message_imprint", "tst_certificate",
-    "trace_content_hash", "trace_chain_hash", "sealed_at", "seal_version"
+    "source_state_hash", "trace_content_hash", "trace_chain_hash", "sealed_at", "seal_version"
   ],
   "properties": {
 
@@ -160,7 +161,7 @@
     },
     "override_watchtower_id": {
       "type": ["string", "null"],
-      "description": "ID of the Watchtower whose result governed the routing decision. Null if no override occurred (routing was determined by confidence_score alone)."
+      "description": "ID of the Watchtower whose result governed the routing decision. Required key. Null if no override occurred (routing was determined by confidence_score alone)."
     },
 
     "$comment_routing": "── ROUTING DECISION FIELDS ────────────────────────────────────────────────",
@@ -182,7 +183,7 @@
     "$comment_path_fields": "── PATH-SPECIFIC RESOLUTION FIELDS ────────────────────────────────────────",
     "autonomous_dispatch": {
       "type": ["object", "null"],
-      "description": "Populated only for AUTONOMOUS routing. Contains dispatch confirmation and any post-dispatch metadata. Null for ASSISTED and ESCALATED.",
+      "description": "Required key. Populated only for AUTONOMOUS routing. Contains dispatch confirmation and any post-dispatch metadata. Null for ASSISTED and ESCALATED.",
       "properties": {
         "dispatched_at": { "type": "string", "format": "date-time" },
         "dispatch_reference": { "type": "string" }
@@ -190,7 +191,7 @@
     },
     "assisted_resolution": {
       "type": ["object", "null"],
-      "description": "Populated only for ASSISTED routing. REQUIRED for ASSISTED outcomes. Null for AUTONOMOUS and ESCALATED.",
+      "description": "Required key. Populated only for ASSISTED routing. REQUIRED for ASSISTED outcomes. Null for AUTONOMOUS and ESCALATED.",
       "properties": {
         "named_accountable_officer_id": { "type": "string", "description": "Stable identifier for the Named Accountable Officer who reviewed this interaction." },
         "review_timestamp": { "type": "string", "format": "date-time", "description": "ISO 8601 UTC timestamp of NAO review action." },
@@ -200,7 +201,7 @@
     },
     "escalation_record": {
       "type": ["object", "null"],
-      "description": "Populated only for ESCALATED routing. REQUIRED for ESCALATED outcomes. Null for AUTONOMOUS and ASSISTED.",
+      "description": "Required key. Populated only for ESCALATED routing. REQUIRED for ESCALATED outcomes. Null for AUTONOMOUS and ASSISTED.",
       "properties": {
         "escalation_reason": { "type": "string", "description": "Documented reason for escalation — Watchtower ID, confidence floor breach, or other trigger." },
         "escalation_authority_id": { "type": "string", "description": "Identifier of the human authority to whom this interaction was escalated." },
@@ -237,7 +238,7 @@
     "tst_message_imprint": {
       "type": "string",
       "pattern": "^[a-f0-9]{64}$",
-      "description": "SHA-256 hash value in the TimeStampToken message imprint. MUST equal trace_content_hash. This equality proves the TST was issued for this specific trace record."
+      "description": "SHA-256 hash value in the TimeStampToken message imprint. It is expected to equal trace_content_hash, and that cross-field equality is verified by the OMP Reference Validator rather than by JSON Schema alone."
     },
     "tst_certificate": {
       "type": "string",
@@ -248,7 +249,7 @@
     "source_state_hash": {
       "type": ["string", "null"],
       "pattern": "^([a-f0-9]{64})?$",
-      "description": "SHA-256(canonical_form(external_api_response) || query_timestamp_ms). Captures the exact state of an external data source at the millisecond of query. Null if no external source was queried. See Section 8.1 of draft-veridom-omp-00 for computation method."
+      "description": "Required key. SHA-256(canonical_form(external_api_response) || query_timestamp_ms). Captures the exact state of an external data source at the millisecond of query. Null if no external source was queried. See Section 8.1 of draft-veridom-omp-00 for computation method."
     },
     "trace_content_hash": {
       "type": "string",
@@ -271,6 +272,60 @@
       "description": "Identifier of the sealing mechanism version used. Constant for this specification version."
     }
   },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "watchtower_override": { "const": false } }
+      },
+      "then": {
+        "properties": { "override_watchtower_id": { "type": "null" } }
+      }
+    },
+    {
+      "if": {
+        "properties": { "watchtower_override": { "const": true } }
+      },
+      "then": {
+        "properties": { "override_watchtower_id": { "type": "string" } }
+      }
+    },
+    {
+      "if": {
+        "properties": { "routing_path": { "const": "AUTONOMOUS" } }
+      },
+      "then": {
+        "properties": {
+          "autonomous_dispatch": { "type": "object" },
+          "assisted_resolution": { "type": "null" },
+          "escalation_record": { "type": "null" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "routing_path": { "const": "ASSISTED" } }
+      },
+      "then": {
+        "properties": {
+          "autonomous_dispatch": { "type": "null" },
+          "assisted_resolution": { "type": "object" },
+          "escalation_record": { "type": "null" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "routing_path": { "const": "ESCALATED" } }
+      },
+      "then": {
+        "properties": {
+          "autonomous_dispatch": { "type": "null" },
+          "assisted_resolution": { "type": "null" },
+          "escalation_record": { "type": "object" }
+        }
+      }
+    }
+  ],
   "additionalProperties": true,
   "$comment": "additionalProperties is true to allow domain profile extensions (EUAIA, DutyMark, InsureMark, etc.). Profile-specific fields are defined in the respective domain profile schemas. All profile extension fields SHOULD use a profile-specific prefix (e.g., 'euaia_', 'fca_', 'ins_') to avoid collisions."
 }
