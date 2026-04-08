@@ -4,6 +4,19 @@ Open reference implementation and verification toolkit for deterministic AI deci
 
 OMP Open Core is the free and open-source implementation layer for the Operating Model Protocol (OMP™). It enables any institution, regulator, insurer, auditor, or researcher to generate, validate, and independently verify OMP-conformant Proof-Points without dependency on Veridom infrastructure.
 
+## Schemas
+
+Three machine-readable JSON Schema files (Draft 2020-12) extracted directly from the IETF specifications:
+
+| Schema | Description | IETF Source |
+|--------|-------------|-------------|
+| [`schemas/audit-trace.schema.json`](schemas/audit-trace.schema.json) | Complete Audit Trace — 34 required fields, RFC 3161 timestamp + SHA-256 Merkle chain sealing | draft-veridom-omp-00 §7 |
+| [`schemas/interaction.schema.json`](schemas/interaction.schema.json) | Interaction input record — 7 required fields, RFC 8785 canonical payload, Source State Hash | draft-veridom-omp-00 §4 |
+| [`schemas/watchtower-definition.schema.json`](schemas/watchtower-definition.schema.json) | Watchtower definition — HARD_BLOCK / FORCE_ASSISTED / AUDIT_ONLY severity model | draft-veridom-omp-00 §6.1 |
+
+All 13 regulated verticals are registered in `interaction.schema.json` → `$defs.VerticalRegistry`.  
+Domain profile Watchtower examples: `WT-FCA-03` (Vulnerable Customer Gate), `WT-CLINICAL-02` (Patient Safety Override), `WT-01` (PII Exposure Shield).
+
 ## What OMP Open Core provides
 
 This repository contains the public, grantable layer of OMP:

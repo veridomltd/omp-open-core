@@ -1,0 +1,153 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/veridomltd/omp-open-core/schemas/interaction.schema.json",
+  "title": "OMP Interaction",
+  "description": "The structured input record submitted to an OMP deployment at Stage S1 (Ingestion and Normalisation). Defined in draft-veridom-omp-00 Section 4 (pipeline) and the OMP v1.3 Interaction Schema amendment. The interaction payload is normalised to RFC 8785 canonical JSON at Stage S1 and the interaction_hash (SHA-256 of the canonical form) is recorded in the resulting Audit Trace. This schema defines the required input structure that guarantees a valid, routeable OMP interaction.",
+  "type": "object",
+  "required": [
+    "interaction_id",
+    "received_at",
+    "deployment_id",
+    "vertical",
+    "channel",
+    "requester_id",
+    "payload"
+  ],
+  "properties": {
+
+    "$comment_identity": "── INTERACTION IDENTITY FIELDS ────────────────────────────────────────────",
+    "interaction_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "UUID v4. Assigned by the OMP pipeline at Stage S1 ingestion. If the submitting system provides a pre-assigned ID, the OMP pipeline MUST record it here. If not, the pipeline assigns one. This ID is the primary key linking the input interaction to its Audit Trace."
+    },
+    "received_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 UTC with millisecond precision. Wall-clock timestamp at which Stage S1 received the interaction. Set by the OMP pipeline, not the submitting system, to prevent clock manipulation."
+    },
+    "deployment_id": {
+      "type": "string",
+      "description": "Identifier of the OMP deployment receiving this interaction. Must match the deployment_id in the resulting Audit Trace."
+    },
+    "vertical": {
+      "type": "string",
+      "description": "The regulated vertical or domain for this interaction. Determines which Intent Class registry, Watchtower set, and routing thresholds apply. Must be a registered vertical for this deployment. Examples: 'kenya_dcp', 'kenya_sacco', 'uk_fca_consumer_duty', 'eu_ai_act_annex3', 'us_clinical_ai', 'us_employment_ads', 'us_mortgage_fhfa'."
+    },
+    "channel": {
+      "type": "string",
+      "description": "The channel through which this interaction was submitted. Recorded in the Audit Trace for operational context. Examples: 'api', 'mobile_app', 'agent_portal', 'batch_process', 'webhook'."
+    },
+    "requester_id": {
+      "type": "string",
+      "description": "Anonymised or pseudonymised identifier for the entity submitting the interaction (the institution's internal customer, agent, or system identifier). MUST NOT contain unredacted personal data at the OMP layer. Personal data in the payload is governed by the payload.data fields."
+    },
+
+    "$comment_payload": "── INTERACTION PAYLOAD ────────────────────────────────────────────────────",
+    "payload": {
+      "type": "object",
+      "required": ["interaction_type", "data"],
+      "description": "The interaction payload. Normalised to RFC 8785 canonical JSON at Stage S1 before hash computation. The SHA-256 of the normalised payload becomes the interaction_hash in the Audit Trace.",
+      "properties": {
+        "interaction_type": {
+          "type": "string",
+          "description": "The specific interaction type within the vertical. Must be a registered interaction type for the deployment's vertical. Examples for kenya_dcp: 'loan_application', 'crb_prelisting_notice', 'complaint_resolution', 'collection_action'. Examples for us_clinical_ai: 'medical_necessity_determination', 'prior_authorisation', 'diagnostic_recommendation'."
+        },
+        "data": {
+          "type": "object",
+          "description": "The interaction-specific data payload. Structure is vertical- and interaction_type-specific. All data fields submitted here become part of the canonical payload used to compute interaction_hash. Implementations SHOULD document the expected schema for each interaction_type in their vertical's domain profile documentation.",
+          "additionalProperties": true
+        },
+        "model_outputs": {
+          "type": ["object", "null"],
+          "description": "OPTIONAL. AI or ML system outputs associated with this interaction, where available. Included in the canonical payload and therefore in the interaction_hash. Structure is vertical- and model-specific.",
+          "properties": {
+            "model_id": { "type": "string", "description": "Identifier of the AI/ML model that generated these outputs." },
+            "model_version": { "type": "string", "description": "Version of the model." },
+            "model_confidence": { "type": "number", "minimum": 0.0, "maximum": 1.0, "description": "Model's own confidence score for its output. Used as C_m in confidence_components." },
+            "model_recommendation": { "description": "The model's recommendation or output. Type is model-specific." },
+            "model_outputs_at": { "type": "string", "format": "date-time", "description": "Timestamp at which the model generated these outputs." }
+          },
+          "additionalProperties": true
+        },
+        "external_data_sources": {
+          "type": ["array", "null"],
+          "description": "OPTIONAL. External data sources queried for this interaction, for Source State Hash (H_s) computation. Each entry generates an H_s value recorded in the Audit Trace.",
+          "items": {
+            "type": "object",
+            "required": ["source_id", "query_timestamp_ms", "response"],
+            "properties": {
+              "source_id": { "type": "string", "description": "Identifier of the external data source queried. Examples: 'crb_transunion', 'crb_creditinfo', 'identity_verification_api', 'property_valuation_api'." },
+              "query_timestamp_ms": { "type": "integer", "description": "Unix timestamp in milliseconds at which the query was made. Used in H_s computation: SHA-256(canonical_form(response) || query_timestamp_ms)." },
+              "response": { "description": "The API response from the external source. Used in H_s computation. MUST be the complete response as received, before any processing." }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "$comment_routing_hints": "── ROUTING HINTS (OPTIONAL) ────────────────────────────────────────────────",
+    "routing_hints": {
+      "type": ["object", "null"],
+      "description": "OPTIONAL. Hints from the submitting system that may influence the routing decision. These are advisory — the OMP pipeline evaluates them but the routing decision is governed by the invariant (confidence score + Watchtower evaluations). Hints cannot override a HARD_BLOCK.",
+      "properties": {
+        "significance_flag": {
+          "type": "boolean",
+          "description": "If true, the submitting system considers this a high-significance interaction that SHOULD receive ASSISTED routing if any ambiguity exists."
+        },
+        "vulnerability_indicators": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "List of vulnerability indicators identified by the submitting system. Used by vulnerability-specific Watchtowers (e.g., WT-FCA-03). Values SHOULD follow the FCA FG21/1 taxonomy or vertical-equivalent."
+        },
+        "prior_interaction_ids": {
+          "type": "array",
+          "items": { "type": "string", "format": "uuid" },
+          "description": "UUIDs of prior interactions related to this one. Used for pattern detection Watchtowers."
+        },
+        "override_requested": {
+          "type": "boolean",
+          "description": "If true, the submitting system is explicitly requesting ESCALATED routing. Does not guarantee escalation but triggers FORCE_ASSISTED at minimum. Must be documented in the Audit Trace routing_rationale."
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "$comment_context": "── DEPLOYMENT CONTEXT (OPTIONAL) ───────────────────────────────────────────",
+    "context": {
+      "type": ["object", "null"],
+      "description": "OPTIONAL. Additional deployment context that is included in the canonical payload (and therefore in interaction_hash) but is not used by the OMP routing logic. Useful for downstream consumers of the Audit Trace.",
+      "properties": {
+        "institution_id": { "type": "string", "description": "Identifier of the regulated institution on whose behalf this interaction is being processed." },
+        "branch_id": { "type": ["string", "null"], "description": "Branch or office identifier, where applicable." },
+        "product_id": { "type": ["string", "null"], "description": "Product identifier, for financial services verticals." },
+        "jurisdiction": { "type": "string", "description": "ISO 3166-1 alpha-2 country code of the jurisdiction in which this interaction occurs." },
+        "regulatory_reference": { "type": ["string", "null"], "description": "Applicable regulation or regulatory framework for this interaction. Examples: 'CBK_NDTCP_2022', 'FCA_CONSUMER_DUTY', 'EU_AI_ACT_ANNEX3', 'CA_SB_1120'." }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "VerticalRegistry": {
+      "$comment": "Registered verticals for OMP deployments. This list is not exhaustive — operators MAY define additional verticals. Domain-specific Watchtower configurations for each vertical are defined in the corresponding IETF domain profile.",
+      "enum": [
+        "kenya_dcp",
+        "kenya_sacco",
+        "uk_fca_consumer_duty",
+        "eu_ai_act_annex3",
+        "us_legal_ai",
+        "us_clinical_ai",
+        "us_employment_ads",
+        "us_mortgage_fhfa",
+        "us_colorado_ai_act",
+        "sg_mas_feat",
+        "sg_asean_guide",
+        "ai_liability_insurance",
+        "generic"
+      ]
+    }
+  }
+}

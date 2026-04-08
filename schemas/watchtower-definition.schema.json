@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/veridomltd/omp-open-core/schemas/watchtower-definition.schema.json",
+  "title": "OMP Watchtower Definition",
+  "description": "Schema for a Watchtower definition in the OMP Watchtower Framework. Defined in draft-veridom-omp-00 Section 6.1. Watchtowers are pre-routing enforcement gates evaluated at Stage S3. A Watchtower MUST NOT force an AUTONOMOUS outcome — it can only route toward greater human involvement (FORCE_ASSISTED or HARD_BLOCK). The highest-severity triggered Watchtower governs the routing decision: HARD_BLOCK > FORCE_ASSISTED > AUDIT_ONLY.",
+  "type": "object",
+  "required": ["id", "name", "vertical", "priority", "severity", "buyer_signal"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^WT-[A-Z0-9]{1,20}(-[A-Z0-9]{1,20})*$",
+      "description": "Unique Watchtower identifier. Format: WT-{VERTICAL_CODE}-{NUMBER} for domain-profile Watchtowers (e.g., WT-FCA-03, WT-EUAIA-01, WT-CLINICAL-02). Format: WT-{NUMBER} for core registry Watchtowers (e.g., WT-01, WT-05)."
+    },
+    "name": {
+      "type": "string",
+      "description": "Human-readable Watchtower name. Used in Audit Trace routing_rationale and in regulatory evidence packages."
+    },
+    "vertical": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "List of verticals to which this Watchtower applies. Use ['*'] to indicate applicability to all verticals. Domain-profile Watchtowers should list their specific vertical(s). Core registry Watchtowers may list ['*']."
+    },
+    "priority": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Evaluation order. Lower numbers are evaluated first. Watchtowers with the same priority MAY be evaluated in parallel. Priority 1 Watchtowers are evaluated before all others."
+    },
+    "severity": {
+      "type": "string",
+      "enum": ["HARD_BLOCK", "FORCE_ASSISTED", "AUDIT_ONLY"],
+      "description": "The action taken when this Watchtower triggers. HARD_BLOCK: immediately routes to ESCALATED, no further evaluation. FORCE_ASSISTED: sets assisted_flag = true, overrides confidence-based AUTONOMOUS routing. AUDIT_ONLY: triggers are recorded in the Audit Trace but do not change routing."
+    },
+    "description": {
+      "type": "string",
+      "description": "OPTIONAL. Full description of this Watchtower's trigger condition, action, and rationale. RECOMMENDED for domain-profile Watchtowers."
+    },
+    "trigger_condition": {
+      "type": "string",
+      "description": "OPTIONAL. Human-readable description of the trigger condition. The actual trigger logic is implemented in code — this field documents the intent for regulatory evidence purposes."
+    },
+    "buyer_signal": {
+      "type": "string",
+      "description": "The regulatory or commercial pain this Watchtower addresses. Used in buyer-facing documentation and regulatory evidence packages. Examples: 'EU AI Act Article 14 human oversight obligation', 'FCA Consumer Duty foreseeable harm prevention', 'California SB 1120 adverse determination QHR requirement'."
+    },
+    "regulatory_reference": {
+      "type": ["string", "null"],
+      "description": "OPTIONAL. The specific regulatory instrument and article/section that this Watchtower implements. Examples: 'EU AI Act Art. 14(4)', 'FCA PS22/9 cross-cutting rule 2.1', 'California SB 1120 s.1367.275(b)'."
+    },
+    "ietf_draft_reference": {
+      "type": ["string", "null"],
+      "description": "OPTIONAL. The IETF Internet-Draft that formally specifies this Watchtower, if applicable. Examples: 'draft-veridom-omp-fca-00', 'draft-veridom-omp-euaia-00'."
+    },
+    "hard_block_exempt_roles": {
+      "type": ["array", "null"],
+      "items": { "type": "string" },
+      "description": "OPTIONAL. Named Accountable Officer roles that may override a HARD_BLOCK in exceptional circumstances. If null or empty, no override is permitted. Any override MUST be documented in the Audit Trace escalation_record."
+    }
+  },
+  "additionalProperties": false,
+  "examples": [
+    {
+      "id": "WT-01",
+      "name": "PII Exposure Shield",
+      "vertical": ["*"],
+      "priority": 1,
+      "severity": "HARD_BLOCK",
+      "buyer_signal": "Prevents PII from reaching the inference layer — satisfies GDPR Article 25 data minimisation, Kenya DPA Section 41, and PDPA Section 24.",
+      "trigger_condition": "PII pattern detected in payload before ingestion to inference layer."
+    },
+    {
+      "id": "WT-FCA-03",
+      "name": "Vulnerable Customer Gate",
+      "vertical": ["uk_fca_consumer_duty"],
+      "priority": 2,
+      "severity": "FORCE_ASSISTED",
+      "buyer_signal": "FCA FG21/1 — firms must identify and respond appropriately to customers with characteristics of vulnerability.",
+      "regulatory_reference": "FCA FG21/1",
+      "ietf_draft_reference": "draft-veridom-omp-fca-00",
+      "trigger_condition": "Any indicator of characteristics of vulnerability: disclosed financial difficulty, health condition affecting financial decision-making, recent life event, low financial capability score, or interaction pattern consistent with vulnerability indicators."
+    },
+    {
+      "id": "WT-CLINICAL-02",
+      "name": "Patient Safety Override Gate",
+      "vertical": ["us_clinical_ai"],
+      "priority": 1,
+      "severity": "HARD_BLOCK",
+      "buyer_signal": "Patient safety — AI recommendation conflicting with known contraindication, allergy, or acute deterioration indicator MUST be immediately blocked.",
+      "regulatory_reference": "Joint Commission/CHAI Responsible Use Guide (September 2025)",
+      "ietf_draft_reference": "draft-veridom-omp-clinical-00",
+      "trigger_condition": "AI output contains or implies a condition the operator's clinical safety detection framework identifies as creating an imminent patient safety risk."
+    }
+  ]
+}

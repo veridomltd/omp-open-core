@@ -1,0 +1,276 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/veridomltd/omp-open-core/schemas/audit-trace.schema.json",
+  "title": "OMP Audit Trace",
+  "description": "The complete structured evidence record produced by every OMP routing event. Defined in draft-veridom-omp-00 Section 7 (IETF Datatracker: https://datatracker.ietf.org/doc/draft-veridom-omp/). Every field is REQUIRED unless marked optional. The sealed Audit Trace is the primary regulatory evidence artifact of an OMP deployment.",
+  "type": "object",
+  "required": [
+    "trace_id", "trace_version", "created_at", "vertical", "deployment_id", "schema_version",
+    "interaction_id", "interaction_received", "interaction_hash", "channel", "requester_id",
+    "intent_class", "intent_confidence", "intent_top3", "classifier_version",
+    "confidence_score", "confidence_components", "routing_threshold",
+    "watchtowers_evaluated", "watchtower_override",
+    "routing_path", "routing_rationale", "routing_decided_at",
+    "tst_time", "tst_tsa_identity", "tst_raw", "tst_serial", "tst_hash_alg", "tst_message_imprint", "tst_certificate",
+    "trace_content_hash", "trace_chain_hash", "sealed_at", "seal_version"
+  ],
+  "properties": {
+
+    "$comment_identity": "── IDENTITY FIELDS ────────────────────────────────────────────────────────",
+    "trace_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "UUID v4. Globally unique identifier for this Audit Trace record."
+    },
+    "trace_version": {
+      "type": "string",
+      "const": "1.0",
+      "description": "Schema version of this trace record."
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 UTC with millisecond precision. Wall-clock time at which Stage S5 (trace sealing) completed."
+    },
+    "vertical": {
+      "type": "string",
+      "description": "The regulated vertical or domain for this deployment. Examples: 'kenya_dcp', 'kenya_sacco', 'uk_fca_consumer_duty', 'eu_ai_act', 'us_clinical_ai', 'us_employment_ads', 'us_mortgage_fhfa'."
+    },
+    "deployment_id": {
+      "type": "string",
+      "description": "Stable identifier for the specific OMP deployment instance. Set at deployment initialisation and constant across all traces in the deployment."
+    },
+    "schema_version": {
+      "type": "string",
+      "const": "VERIDOM-SCHEMA-001-v1.0",
+      "description": "OMP Audit Trace schema version identifier. Implementations extending the schema MUST use a distinct schema_version string."
+    },
+
+    "$comment_interaction": "── INTERACTION FIELDS ─────────────────────────────────────────────────────",
+    "interaction_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "UUID v4. Unique identifier for the interaction that generated this trace. Assigned at Stage S1 ingestion."
+    },
+    "interaction_received": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 UTC. Timestamp at which Stage S1 received the interaction payload."
+    },
+    "interaction_hash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$",
+      "description": "SHA-256 of the RFC 8785 canonical form of the interaction payload. Computed at Stage S1. Proves input data integrity — any subsequent modification to the payload is detectable."
+    },
+    "channel": {
+      "type": "string",
+      "description": "The channel through which the interaction was received. Examples: 'api', 'mobile_app', 'agent_portal', 'batch_process'."
+    },
+    "requester_id": {
+      "type": "string",
+      "description": "Anonymised or pseudonymised identifier for the entity that submitted the interaction. MUST NOT contain unredacted personal data."
+    },
+
+    "$comment_intent": "── INTENT CLASSIFICATION FIELDS ───────────────────────────────────────────",
+    "intent_class": {
+      "type": "string",
+      "description": "The Intent Class to which Stage S2 classified this interaction. Must be a registered Intent Class for the vertical."
+    },
+    "intent_confidence": {
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 1.0,
+      "description": "Classifier confidence in the intent_class assignment. Float [0.0, 1.0]. A value below 0.60 triggers FORCE_ASSISTED per the routing invariant."
+    },
+    "intent_top3": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 3,
+      "description": "Top-3 candidate Intent Classes with their confidence scores.",
+      "items": {
+        "type": "object",
+        "required": ["class", "confidence"],
+        "properties": {
+          "class": { "type": "string" },
+          "confidence": { "type": "number", "minimum": 0.0, "maximum": 1.0 }
+        },
+        "additionalProperties": false
+      }
+    },
+    "classifier_version": {
+      "type": "string",
+      "description": "Version identifier of the intent classifier used at Stage S2. Required for model risk governance and decision reconstructability."
+    },
+
+    "$comment_confidence": "── CONFIDENCE SCORING FIELDS ──────────────────────────────────────────────",
+    "confidence_score": {
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 1.0,
+      "description": "Composite Confidence Score. Weighted combination of C_m (model confidence), C_p (policy compliance), and C_d (data completeness). This is the value compared to routing_threshold in the routing decision."
+    },
+    "confidence_components": {
+      "type": "object",
+      "required": ["C_m", "C_p", "C_d", "weights"],
+      "description": "Decomposed confidence score components enabling auditability of the routing decision.",
+      "properties": {
+        "C_m": { "type": "number", "minimum": 0.0, "maximum": 1.0, "description": "Model confidence. The AI system's own confidence in its output for this interaction." },
+        "C_p": { "type": "number", "minimum": 0.0, "maximum": 1.0, "description": "Policy compliance score. Evaluated by the Watchtower framework. A value of 0.0 MUST force ESCALATED routing." },
+        "C_d": { "type": "number", "minimum": 0.0, "maximum": 1.0, "description": "Data completeness score. Fraction of required input fields present and valid." },
+        "weights": {
+          "type": "object",
+          "required": ["C_m", "C_p", "C_d"],
+          "properties": {
+            "C_m": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+            "C_p": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+            "C_d": { "type": "number", "minimum": 0.0, "maximum": 1.0 }
+          },
+          "description": "Weights applied to each component. Must sum to 1.0."
+        }
+      },
+      "additionalProperties": false
+    },
+    "routing_threshold": {
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 1.0,
+      "description": "The configured theta value for this vertical/deployment — the minimum confidence_score required for AUTONOMOUS routing. Recorded per-trace to enable retrospective routing verification."
+    },
+
+    "$comment_watchtowers": "── WATCHTOWER EVALUATION FIELDS ───────────────────────────────────────────",
+    "watchtowers_evaluated": {
+      "type": "array",
+      "description": "Complete list of all Watchtowers evaluated for this interaction at Stage S3, including those that did not trigger. ALL Watchtowers evaluated MUST be recorded regardless of whether they triggered.",
+      "items": {
+        "type": "object",
+        "required": ["watchtower_id", "triggered", "severity", "evidence", "evaluated_at"],
+        "properties": {
+          "watchtower_id": { "type": "string", "description": "Watchtower identifier. e.g. 'WT-01', 'WT-EUAIA-01', 'WT-FCA-03'." },
+          "triggered": { "type": "boolean", "description": "Whether this Watchtower triggered for this interaction." },
+          "severity": { "type": "string", "enum": ["HARD_BLOCK", "FORCE_ASSISTED", "AUDIT_ONLY"], "description": "Configured severity for this Watchtower." },
+          "evidence": { "type": "object", "description": "Watchtower-specific evidence object documenting the evaluation result. Structure varies by Watchtower definition." },
+          "evaluated_at": { "type": "string", "format": "date-time", "description": "ISO 8601 UTC timestamp of Watchtower evaluation." }
+        },
+        "additionalProperties": false
+      }
+    },
+    "watchtower_override": {
+      "type": "boolean",
+      "description": "True if any Watchtower overrode the confidence-score-based routing decision. Highest-severity Watchtower result governs: HARD_BLOCK > FORCE_ASSISTED > AUDIT_ONLY."
+    },
+    "override_watchtower_id": {
+      "type": ["string", "null"],
+      "description": "ID of the Watchtower whose result governed the routing decision. Null if no override occurred (routing was determined by confidence_score alone)."
+    },
+
+    "$comment_routing": "── ROUTING DECISION FIELDS ────────────────────────────────────────────────",
+    "routing_path": {
+      "type": "string",
+      "enum": ["AUTONOMOUS", "ASSISTED", "ESCALATED"],
+      "description": "The routing outcome. Exactly one of the three OMP routing states. This is the primary accountability field: AUTONOMOUS (AI decided without human review), ASSISTED (Named Accountable Officer reviewed before dispatch), ESCALATED (mandatory human intervention required)."
+    },
+    "routing_rationale": {
+      "type": "string",
+      "description": "Human-readable explanation of the routing decision with explicit rule reference. Must identify whether routing was determined by confidence_score comparison to routing_threshold, a Watchtower trigger, or both."
+    },
+    "routing_decided_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 UTC timestamp of the routing decision at Stage S4."
+    },
+
+    "$comment_path_fields": "── PATH-SPECIFIC RESOLUTION FIELDS ────────────────────────────────────────",
+    "autonomous_dispatch": {
+      "type": ["object", "null"],
+      "description": "Populated only for AUTONOMOUS routing. Contains dispatch confirmation and any post-dispatch metadata. Null for ASSISTED and ESCALATED.",
+      "properties": {
+        "dispatched_at": { "type": "string", "format": "date-time" },
+        "dispatch_reference": { "type": "string" }
+      }
+    },
+    "assisted_resolution": {
+      "type": ["object", "null"],
+      "description": "Populated only for ASSISTED routing. REQUIRED for ASSISTED outcomes. Null for AUTONOMOUS and ESCALATED.",
+      "properties": {
+        "named_accountable_officer_id": { "type": "string", "description": "Stable identifier for the Named Accountable Officer who reviewed this interaction." },
+        "review_timestamp": { "type": "string", "format": "date-time", "description": "ISO 8601 UTC timestamp of NAO review action." },
+        "resolution_action": { "type": "string", "description": "The NAO's documented resolution action." },
+        "sla_met": { "type": "boolean", "description": "Whether the NAO review was completed within the configured SLA window." }
+      }
+    },
+    "escalation_record": {
+      "type": ["object", "null"],
+      "description": "Populated only for ESCALATED routing. REQUIRED for ESCALATED outcomes. Null for AUTONOMOUS and ASSISTED.",
+      "properties": {
+        "escalation_reason": { "type": "string", "description": "Documented reason for escalation — Watchtower ID, confidence floor breach, or other trigger." },
+        "escalation_authority_id": { "type": "string", "description": "Identifier of the human authority to whom this interaction was escalated." },
+        "escalation_timestamp": { "type": "string", "format": "date-time" },
+        "resolution_timestamp": { "type": ["string", "null"], "format": "date-time" },
+        "resolution_action": { "type": ["string", "null"] }
+      }
+    },
+
+    "$comment_tst": "── RFC 3161 TIMESTAMP FIELDS ───────────────────────────────────────────────",
+    "tst_time": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 UTC with millisecond precision. The time attested by the Timestamp Authority. This is the legally significant timestamp: it proves the Audit Trace existed in its exact form at this moment, attested by a party external to the institution. Cannot be retroactively obtained for a fabricated record."
+    },
+    "tst_tsa_identity": {
+      "type": "string",
+      "description": "Distinguished Name (DN) of the Timestamp Authority that issued this TimeStampToken. For EU deployments under the EUAIA profile, MUST identify a QTSP listed in an EU Member State trusted list under eIDAS Article 22."
+    },
+    "tst_raw": {
+      "type": "string",
+      "contentEncoding": "base64",
+      "description": "Base64-encoded raw RFC 3161 TimeStampToken (DER-encoded TSTInfo structure). Used by the OMP Reference Validator to verify TST authenticity against the TSA's public key."
+    },
+    "tst_serial": {
+      "type": "string",
+      "description": "Serial number of the TimeStampToken. Unique within the issuing TSA."
+    },
+    "tst_hash_alg": {
+      "type": "string",
+      "const": "SHA-256",
+      "description": "Hash algorithm used in the TimeStampToken message imprint. MUST be SHA-256."
+    },
+    "tst_message_imprint": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$",
+      "description": "SHA-256 hash value in the TimeStampToken message imprint. MUST equal trace_content_hash. This equality proves the TST was issued for this specific trace record."
+    },
+    "tst_certificate": {
+      "type": "string",
+      "description": "Base64-encoded TSA signing certificate or URI to the TSA certificate. Required for offline verification by the OMP Reference Validator."
+    },
+
+    "$comment_sealing": "── CRYPTOGRAPHIC SEALING FIELDS ───────────────────────────────────────────",
+    "source_state_hash": {
+      "type": ["string", "null"],
+      "pattern": "^([a-f0-9]{64})?$",
+      "description": "SHA-256(canonical_form(external_api_response) || query_timestamp_ms). Captures the exact state of an external data source at the millisecond of query. Null if no external source was queried. See Section 8.1 of draft-veridom-omp-00 for computation method."
+    },
+    "trace_content_hash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$",
+      "description": "H_content = SHA-256 of the canonical form of this Audit Trace record (all fields except trace_content_hash, trace_chain_hash, and seal fields). This is the primary tamper-evidence field: any post-sealing modification to any trace field is detectable by recomputing this hash."
+    },
+    "trace_chain_hash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$",
+      "description": "H_c = SHA-256(H_content_this || H_c_previous). Merkle chain entry linking this trace to all preceding traces in the deployment. Any modification to any historical trace invalidates all subsequent chain hashes. Enables completeness verification: a gap in the chain signals a deleted or missing trace."
+    },
+    "sealed_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 UTC timestamp at which Stage S5 completed the sealing process."
+    },
+    "seal_version": {
+      "type": "string",
+      "const": "SHA256-RFC3161-CHAIN-v1",
+      "description": "Identifier of the sealing mechanism version used. Constant for this specification version."
+    }
+  },
+  "additionalProperties": true,
+  "$comment": "additionalProperties is true to allow domain profile extensions (EUAIA, DutyMark, InsureMark, etc.). Profile-specific fields are defined in the respective domain profile schemas. All profile extension fields SHOULD use a profile-specific prefix (e.g., 'euaia_', 'fca_', 'ins_') to avoid collisions."
+}
